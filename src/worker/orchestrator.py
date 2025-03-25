@@ -8,6 +8,8 @@ import vertexai
 from vertexai.generative_models import GenerativeModel
 from google.cloud import texttospeech
 
+import concurrent.futures
+
 from src.config import LANG_CODE_MAP, get_translation_prompt, ContentConfig
 
 PROJECT_ID = 'prisma-cortex-playground'
@@ -89,8 +91,11 @@ class ContentCurator:
     def _process(self, text):
         if self.config.split_into_parts:
             chunks = self.chunkify(text)
-            for i, chunk in enumerate(chunks):
-                self._translate(i + self.config.from_chunk, chunk)
+            with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
+                futures = [executor.submit(self._translate, i + self.config.from_chunk, chunk) for i, chunk in
+                           enumerate(chunks)]
+                for future in concurrent.futures.as_completed(futures):
+                    future.result()
         else:
             self._translate(0, text)
 
@@ -118,7 +123,7 @@ class ContentCurator:
                 self.logger.warning("Skipping synthesis due to error in translation.")
 
     def _synthesize(self, part_number, tx, n):
-        voice_name = f'{n}-Wavenet-A'
+        voice_name = str(f'{n}-Wavenet-A')
         language_code = LANG_CODE_MAP[n]
         voice = texttospeech.VoiceSelectionParams(language_code=language_code, name=voice_name)
         file_name = f'{self.config.name}-part-{part_number}-{language_code}' if part_number > 0 else f'{self.config.name}-{language_code}'
@@ -133,4 +138,3 @@ class ContentCurator:
         self.logger.info(f"Synthesizing part {part_number} in {n} language")
         self.logger.info(f"Synthesis response: {response}")
         self.logger.info(f"Synthesized audio file: {file_name}")
-
