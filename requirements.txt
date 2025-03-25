@@ -1,3 +1,4 @@
 requests
 vertexai
 google-cloud-texttospeech
+PyYAML

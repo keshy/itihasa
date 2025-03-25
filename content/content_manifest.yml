@@ -1,21 +1,20 @@
 version: "1.0"
 content_manifest:
-  - name: "Interview with Tech Leader"
-    source:
-      path: ""
-      type: "video"
-    background_music:
-      - path: "/assets/music/intro_theme.mp3"
-    translations:
-      - "English"
-      - "Spanish"
-      - "Japanese"
-      - "Korean"
-    publishing_platforms:
-      - "YouTube"
-      - "Spotify"
-      - "Apple Podcasts"
-    generate_ai_description: true
-    generate_milestones: true
-    split_into_parts: true
-
+  name: "Interview with Tech Leader"
+  source:
+    path: ""
+    type: "audio"
+  background_music:
+    path: "/assets/music/intro_theme.mp3"
+  translations:
+    - "English"
+    - "Spanish"
+    - "Japanese"
+    - "Korean"
+  publishing_platforms:
+    - "YouTube"
+    - "Soundcloud"
+    - "Apple Podcasts"
+  generate_ai_description: true
+  generate_milestones: true
+  split_into_parts: true
