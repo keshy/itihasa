@@ -7,7 +7,7 @@ from worker.orchestrator import ContentCurator
 
 def main():
     parser = argparse.ArgumentParser(description='Process content configuration.')
-    parser.add_argument('config_path', type=str, help='Path to the content config file')
+    parser.add_argument('--config_path', type=str, help='Path to the content config file')
     parser.add_argument('--background', action='store_true', help='Run process in background')
 
     args = parser.parse_args()
@@ -23,7 +23,9 @@ def main():
         if pid > 0:
             sys.exit()
 
+    orchestrator.logger.info("Starting content curation...")
     orchestrator.curate()
+    orchestrator.logger.info("Content curation completed.")
 
 
 if __name__ == '__main__':

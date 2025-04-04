@@ -1,0 +1,15 @@
+version: "1.0"
+content_manifest:
+  id: "kadha_shashti"
+  name: "Kanda Shashti Kavasam - As written by Devaraya Swamigal"
+  content_type: "audio"
+  source:
+    path: "../data/kanda_shashti/"
+    language: "Tamil"
+  translations:
+    - "Spanish"
+  publishing_platforms:
+    - "Soundcloud"
+  generate_ai_description: true
+  generate_milestones: true
+  split_into_parts: true

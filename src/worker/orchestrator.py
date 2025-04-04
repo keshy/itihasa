@@ -8,14 +8,13 @@ import vertexai
 from vertexai.generative_models import GenerativeModel
 from google.cloud import texttospeech
 
-from src.config import LANG_CODE_MAP, get_translation_prompt, ContentConfig
+import concurrent.futures
 
-PROJECT_ID = 'prisma-cortex-playground'
-MODEL_ID = "gemini-2.0-flash-001"
-REGION = 'us-central1'
-vertexai.init(project=PROJECT_ID, location=REGION)
+from config import LANG_CODE_MAP, get_translation_prompt, ContentConfig
+
 # Update logging format to include job_id
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(job_id)s - %(message)s')
+vertexai.init(project=os.getenv("GCP_PARENT_PROJECT"), location=os.getenv("GCP_LOCATION"))
 
 
 class JobIDFilter(logging.Filter):
@@ -32,12 +31,13 @@ class ContentCurator:
     def __init__(self, config: ContentConfig):
         self.logger = logging.getLogger(__name__)
         self.config = config
-        self.gen_model = GenerativeModel(MODEL_ID)
+        self.gen_model = GenerativeModel(os.getenv("VERTEX_MODEL_ID", "gemini-2.0-flash-001"))
         self.tts_client = texttospeech.TextToSpeechLongAudioSynthesizeClient()
         self.audio_config = texttospeech.AudioConfig(
             audio_encoding=texttospeech.AudioEncoding.LINEAR16,
-            speaking_rate=0.5
+            speaking_rate=0.8
         )
+        self.target_languages = config.translations
         self.job_id = uuid.uuid4()
         self.retry_from_chunk = self.config.from_chunk
         # Add JobIDFilter to the logger
@@ -89,13 +89,17 @@ class ContentCurator:
     def _process(self, text):
         if self.config.split_into_parts:
             chunks = self.chunkify(text)
-            for i, chunk in enumerate(chunks):
-                self._translate(i + self.config.from_chunk, chunk)
+            with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
+                futures = [executor.submit(self._translate, i + self.config.from_chunk, chunk) for i, chunk in
+                           enumerate(chunks)]
+                for future in concurrent.futures.as_completed(futures):
+                    future.result()
         else:
             self._translate(0, text)
 
     def _translate(self, chunk_number, text):
-        prompt = get_translation_prompt(text, self.config)
+        prompt = get_translation_prompt(text, self.config.source_language,
+                                        {k: LANG_CODE_MAP[k] for k in self.target_languages})
         response = self.gen_model.generate_content(contents=prompt)
         for n in self.config.translations:
 
@@ -104,11 +108,11 @@ class ContentCurator:
                 tx = response.text.replace('```json', '')
                 tx = tx.replace('```', '')
                 response_dict = json.loads(tx)
-                if response_dict.get('status') != 'pass':
+                if not response_dict.get('answer') or response_dict.get('status') != 'pass':
                     error = f'⚡Could not translate...'
                     self.logger.error(error)
                 else:
-                    sanitized_response = response_dict.get('answer')
+                    sanitized_response = response_dict['answer'][LANG_CODE_MAP.get(n)]
             except Exception as e:
                 error = f'⚡Could not translate due to a run time exception: {e}'
                 self.logger.error(error)
@@ -118,19 +122,20 @@ class ContentCurator:
                 self.logger.warning("Skipping synthesis due to error in translation.")
 
     def _synthesize(self, part_number, tx, n):
-        voice_name = f'{n}-Wavenet-A'
-        language_code = LANG_CODE_MAP[n]
+        voice_name = str(f'{LANG_CODE_MAP.get(n)}-Standard-B')
+        language_code = LANG_CODE_MAP.get(n)
         voice = texttospeech.VoiceSelectionParams(language_code=language_code, name=voice_name)
-        file_name = f'{self.config.name}-part-{part_number}-{language_code}' if part_number > 0 else f'{self.config.name}-{language_code}'
+        file_name = f'{self.config.id}/{self.config.name}-part-{part_number}-{language_code}' if part_number > 0 \
+            else f'{self.config.id}/{self.config.name}-{language_code}'
+
         request = texttospeech.SynthesizeLongAudioRequest(
             parent=os.getenv("GCP_PARENT_PROJECT_LOCATION"),
             input={'text': tx},
             audio_config=self.audio_config,
             voice=voice,
-            output_gcs_uri=f'{os.getenv("GCS_BUCKET")}/{self.job_id}/{file_name}'
+            output_gcs_uri=f'{os.getenv("GCS_BUCKET")}/{file_name}'
         )
         response = self.tts_client.synthesize_long_audio(request=request)
         self.logger.info(f"Synthesizing part {part_number} in {n} language")
         self.logger.info(f"Synthesis response: {response}")
         self.logger.info(f"Synthesized audio file: {file_name}")
-

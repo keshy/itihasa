@@ -1,4 +1,5 @@
 import os
+import uuid
 
 import yaml
 
@@ -9,13 +10,14 @@ LANG_CODE_MAP = {
     'Gujarati': 'gu-IN',
     'Bengali': 'bn-IN',
     'Kannada': 'kn-IN',
-    'Telugu': 'te-IN'
+    'Telugu': 'te-IN',
+    'Spanish': 'es-ES',
 }
 
 SYSTEM_ENV_DEFAULTS = {
-    "GCS_BUCKET": "gs://hyperion-graph-bench/mahabharat",
-    "GCP_PARENT_PROJECT_LOCATION": "projects/prisma-cortex-playground/locations/us-central1",
-    "GCP_PARENT_PROJECT": "prisma-cortex-playground",
+    "GCS_BUCKET": "gs://ithihasa",
+    "GCP_PARENT_PROJECT_LOCATION": "projects/sage-ace-233407/locations/us-central1",
+    "GCP_PARENT_PROJECT": "sage-ace-233407",
     "GCP_LOCATION": "us-central1",
     "VERTEX_MODEL_ID": "gemini-2.0-flash-001"
 }
@@ -44,7 +46,7 @@ def get_base_translation_prompt():
         """
 
 
-def get_translation_prompt(text, lang):
+def get_translation_prompt(text, lang, target_langs_map):
     return get_base_translation_prompt() \
            + "\n" \
            + f"""
@@ -57,7 +59,7 @@ def get_translation_prompt(text, lang):
         </INPUT_LANGUAGE>
         
         <LANGUAGE_CODE_MAP>
-        {LANG_CODE_MAP}
+        {target_langs_map}
         </LANGUAGE_CODE_MAP
         """
 
@@ -69,10 +71,11 @@ PLATFORMS = {
 
 
 class ContentConfig:
-    def __init__(self, name, source_path, source_type, source_lang, background_music, translations,
+    def __init__(self, name, id, source_path, source_type, source_lang, background_music, translations,
                  publishing_platforms,
                  generate_ai_description, generate_milestones, split_into_parts, from_chunk):
         self.name = name
+        self.id = id
         self.source_path = source_path
         self.content_type = source_type
         self.source_language = source_lang
@@ -85,6 +88,7 @@ class ContentConfig:
         self.from_chunk = from_chunk
         self.validate_translations()
         self.validate_publishing_platforms()
+        set_system_env_defaults()
 
     def validate_publishing_platforms(self):
         for platform in self.publishing_platforms:
@@ -98,12 +102,14 @@ class ContentConfig:
 
     @classmethod
     def from_dict(cls, data):
+        bg_music = data.get('background_music').get('path') if data.get('background_music') else None
         return cls(
             name=data['name'],
+            id=data.get('id', uuid.uuid4()),
             source_path=data['source']['path'],
             source_type=data['content_type'],
             source_lang=data['source']['language'],
-            background_music=data['background_music']['path'],
+            background_music=bg_music,
             translations=data['translations'],
             publishing_platforms=data['publishing_platforms'],
             generate_ai_description=data['generate_ai_description'],

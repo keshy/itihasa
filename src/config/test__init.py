@@ -13,7 +13,7 @@ class TestTranslationPrompts(unittest.TestCase):
     def test_get_translation_prompt(self):
         text = "Hello, world!"
         lang = "English"
-        prompt = get_translation_prompt(text, lang)
+        prompt = get_translation_prompt(text, lang, {"English": "en"})
         self.assertIn("<TEXT>", prompt)
         self.assertIn(text, prompt)
         self.assertIn("<INPUT_LANGUAGE>", prompt)
