@@ -2,3 +2,4 @@ requests
 vertexai
 google-cloud-texttospeech
 PyYAML
+bs4
