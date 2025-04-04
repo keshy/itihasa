@@ -5,7 +5,7 @@ import re
 import uuid
 
 import vertexai
-from vertexai.generative_models import GenerativeModel
+from vertexai.generative_models import GenerativeModel, GenerationConfig
 from google.cloud import texttospeech
 
 import concurrent.futures
@@ -35,7 +35,7 @@ class ContentCurator:
         self.tts_client = texttospeech.TextToSpeechLongAudioSynthesizeClient()
         self.audio_config = texttospeech.AudioConfig(
             audio_encoding=texttospeech.AudioEncoding.LINEAR16,
-            speaking_rate=0.8
+            speaking_rate=0.85
         )
         self.target_languages = config.translations
         self.job_id = uuid.uuid4()
@@ -44,33 +44,16 @@ class ContentCurator:
         job_id_filter = JobIDFilter(self.job_id)
         self.logger.addFilter(job_id_filter)
 
-    def chunkify(self, text, max_words=1000, overlap=0.2):
-        words = text.split()
+    def chunkify(self, text, max_lines_per_chunk=100, overlap=0.02):
+        # split text into chunks of 100 lines with 20% overlap
+        lines = text.splitlines()
         chunks = []
-        chunk = []
-        chunk_word_count = 0
-        overlap_count = int(max_words * overlap)
-        current_chunk = 0
-
-        for word in words:
-            chunk.append(word)
-            chunk_word_count += 1
-
-            if chunk_word_count >= max_words:
-                # Ensure the chunk ends at a line break or a full stop
-                while chunk and not re.match(r'[.\n]', chunk[-1]):
-                    chunk_word_count -= 1
-                    chunk.pop()
-
-                if current_chunk >= self.config.from_chunk:
-                    chunks.append(' '.join(chunk))
-                chunk = chunk[-overlap_count:]
-                chunk_word_count = len(chunk)
-                current_chunk += 1
-
-        if chunk and current_chunk >= self.config.from_chunk:
-            chunks.append(' '.join(chunk))
-
+        for i in range(0, len(lines), max_lines_per_chunk):
+            chunk = lines[i:i + max_lines_per_chunk]
+            if i > 0:
+                o = lines[i - int(max_lines_per_chunk * overlap):i]
+                chunk = o + chunk
+            chunks.append('\n'.join(chunk))
         return chunks
 
     def curate(self):
@@ -81,34 +64,42 @@ class ContentCurator:
                 self._process(text)
         else:
             for root, dirs, files in os.walk(self.config.source_path):
+                files.sort()
                 for file in files:
                     with open(os.path.join(root, file), 'r') as f:
                         text = f.read()
                         self._process(text)
+                        print('Completed processing file:', file)
 
     def _process(self, text):
         if self.config.split_into_parts:
             chunks = self.chunkify(text)
-            with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
-                futures = [executor.submit(self._translate, i + self.config.from_chunk, chunk) for i, chunk in
-                           enumerate(chunks)]
-                for future in concurrent.futures.as_completed(futures):
-                    future.result()
+            for i, chunk in enumerate(chunks):
+                self._translate(i + self.config.from_chunk, chunk)
+            # with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
+            #     futures = [executor.submit(self._translate, i + self.config.from_chunk, chunk) for i, chunk in
+            #                enumerate(chunks)]
+            #     for future in concurrent.futures.as_completed(futures):
+            #         future.result()
+            self.config.from_chunk = len(chunks) + self.config.from_chunk
         else:
             self._translate(0, text)
+            self.config.from_chunk = 1
 
     def _translate(self, chunk_number, text):
         prompt = get_translation_prompt(text, self.config.source_language,
                                         {k: LANG_CODE_MAP[k] for k in self.target_languages})
-        response = self.gen_model.generate_content(contents=prompt)
-        for n in self.config.translations:
+        response = self.gen_model.generate_content(contents=prompt,
+                                                   generation_config=GenerationConfig(max_output_tokens=4000,
+                                                                                      temperature=0.5))
 
+        for n in self.config.translations:
             sanitized_response = None
             try:
                 tx = response.text.replace('```json', '')
                 tx = tx.replace('```', '')
                 response_dict = json.loads(tx)
-                if not response_dict.get('answer') or response_dict.get('status') != 'pass':
+                if not response_dict.get('answer'):
                     error = f'⚡Could not translate...'
                     self.logger.error(error)
                 else:
@@ -125,8 +116,8 @@ class ContentCurator:
         voice_name = str(f'{LANG_CODE_MAP.get(n)}-Standard-B')
         language_code = LANG_CODE_MAP.get(n)
         voice = texttospeech.VoiceSelectionParams(language_code=language_code, name=voice_name)
-        file_name = f'{self.config.id}/{self.config.name}-part-{part_number}-{language_code}' if part_number > 0 \
-            else f'{self.config.id}/{self.config.name}-{language_code}'
+        file_name = f'{language_code}/{self.config.id}/{self.config.name}-part-{part_number}-{language_code}' if part_number > 0 \
+            else f'{language_code}/{self.config.id}/{self.config.name}-{language_code}'
 
         request = texttospeech.SynthesizeLongAudioRequest(
             parent=os.getenv("GCP_PARENT_PROJECT_LOCATION"),
