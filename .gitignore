@@ -6,6 +6,7 @@ dbinit.py
 initdb.py
 secrets.py
 data/*
+ithasa-svc-acct-gcp.json
 slack_secrets.yaml
 doc_loader/confluence_secrets.yaml
 # Airflow sqlite databases

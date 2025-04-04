@@ -1,0 +1,15 @@
+version: "1.0"
+content_manifest:
+  id: "krish_mahabharat"
+  name: "Mahabharat - As written by Ved Vyasa"
+  content_type: "audio"
+  source:
+    path: "../data/mahabharat/"
+    language: "Sanskrit"
+  translations:
+    - "Hindi"
+  publishing_platforms:
+    - "Soundcloud"
+  generate_ai_description: true
+  generate_milestones: true
+  split_into_parts: true
