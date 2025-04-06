@@ -3,3 +3,4 @@ vertexai
 google-cloud-texttospeech
 PyYAML
 bs4
+moviepy==1.0.3
