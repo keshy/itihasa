@@ -31,20 +31,20 @@ def set_system_env_defaults():
 
 def get_base_translation_prompt():
     return f"""
-        Your a lingual expert and adept at efficient and accurate translations. Given a piece of text or a verse specified in the <TEXT> field in a given language indicated by <INPUT_LANGUAGE>, translate the text into the set of languages specified in the <LANGUAGE_CODE_MAP> dictionary which contains the language and its specific language code using the following guardrails: 
+        Your a lingual expert and adept at efficient and accurate translations. Given a piece of text or a verse specified in the <TEXT> field in a given language indicated by <INPUT_LANGUAGE>, translate the text into the set of languages specified as the keys of <LANGUAGE_CODE_MAP> dictionary which contains the language name and its specific code using the following guardrails: 
         - Ensure you use succinct easy to understand words for the target language in the translation. 
-        - The output must only be in the target language and not in the source language.
-        - The output must be like a discourse which makes it easy to understand for the target audience.
+        - The output must only be in the set of target languages and not in the source language.
+        - The output must be like a discourse which makes it easy to understand for the target audience for each language specified in the <LANGUAGE_CODE_MAP> dictionary.
         
         The output format must follow the following pattern:
-        - ensure its ONLY a valid JSON response. No other content should be there. 
+        - The response must only be a valid JSON response. No other content should be returned. 
         - JSON must include 2 fields - {{"answer": {{"<language_code>": "<translated_answer>"}}}}. The answer field must be a dictionary of the language code as found in the values of <LANGUAGE_CODE_MAP>, and its corresponding translated text in that language.
         - Do not allow translations for more than 10 languages at a time in one request.  
         - Do not return with any other response format other than the json. 
         """
 
 
-def get_translation_prompt(text, lang, target_langs_map):
+def get_translation_prompt(part_info, text, lang, target_langs_map):
     return get_base_translation_prompt() \
            + "\n" \
            + f"""

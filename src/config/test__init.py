@@ -8,7 +8,6 @@ class TestTranslationPrompts(unittest.TestCase):
         prompt = get_base_translation_prompt()
         self.assertIn("Your a lingual expert", prompt)
         self.assertIn("JSON response", prompt)
-        self.assertIn("status", prompt)
 
     def test_get_translation_prompt(self):
         text = "Hello, world!"

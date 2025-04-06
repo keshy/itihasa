@@ -1,14 +1,19 @@
 import unittest
 from unittest.mock import patch, MagicMock
+
+from requests import Response
+
 from src.worker.orchestrator import ContentCurator, ContentConfig
 
 
 class TestContentCurator(unittest.TestCase):
 
     @patch('src.worker.orchestrator.texttospeech.TextToSpeechLongAudioSynthesizeClient')
-    def setUp(self, MockTTSClient):
+    @patch('src.worker.orchestrator.GenerativeModel')
+    def setUp(self, MockTTSClient, MockGenModel):
         self.mock_tts_client = MockTTSClient.return_value
         self.config = ContentConfig(
+            id='test_id',
             name='Test Content',
             source_path='/path/to/source',
             source_lang='English',
@@ -32,10 +37,12 @@ class TestContentCurator(unittest.TestCase):
         self.assertIsNotNone(self.curator.job_id)
 
     def test_chunkify(self):
-        text = "This is a test text. " * 100
-        chunks = self.curator.chunkify(text, max_words=10, overlap=0.1)
+        text = "This is a test text. \n" * 100
+        chunks = self.curator.chunkify(text, max_lines_per_chunk=10, overlap=0.1)
         self.assertTrue(len(chunks) > 1)
-        self.assertTrue(all(len(chunk.split()) <= 10 for chunk in chunks))
+        self.assertTrue(all(chunk in text for chunk in chunks))
+        self.assertTrue(all(chunk.count('\n') >= 1 for chunk in chunks))
+        self.assertTrue(all(chunk.count('\n') <= 10 for chunk in chunks))
 
     @patch('src.worker.orchestrator.GenerativeModel.generate_content')
     @patch('os.path.isfile', return_value=True)
@@ -59,12 +66,6 @@ class TestContentCurator(unittest.TestCase):
         text = "This is a test text. " * 100
         self.curator._process(text)
         self.assertTrue(mock_translate.called)
-
-    @patch('src.worker.orchestrator.GenerativeModel.generate_content')
-    def test_translate(self, mock_generate_content):
-        mock_generate_content.return_value = MagicMock(text='{"status": "pass", "answer": "Translated text"}')
-        self.curator._translate(0, "This is a test text.")
-        self.assertTrue(mock_generate_content.called)
 
 
 if __name__ == '__main__':

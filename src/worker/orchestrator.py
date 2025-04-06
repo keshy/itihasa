@@ -1,9 +1,8 @@
 import json
 import logging
 import os
-import re
 import uuid
-
+from google.cloud import storage
 import vertexai
 from vertexai.generative_models import GenerativeModel, GenerationConfig
 from google.cloud import texttospeech
@@ -42,7 +41,10 @@ class ContentCurator:
         self.retry_from_chunk = self.config.from_chunk
         # Add JobIDFilter to the logger
         job_id_filter = JobIDFilter(self.job_id)
+        self.chunks = []
         self.logger.addFilter(job_id_filter)
+        self.storage_client = storage.Client()
+        self.bucket = self.storage_client.bucket(os.getenv("GCS_BUCKET").split("://")[1])
 
     def chunkify(self, text, max_lines_per_chunk=100, overlap=0.02):
         # split text into chunks of 100 lines with 20% overlap
@@ -73,31 +75,31 @@ class ContentCurator:
 
     def _process(self, text):
         if self.config.split_into_parts:
-            chunks = self.chunkify(text)
-            for i, chunk in enumerate(chunks):
-                self._translate(i + self.config.from_chunk, chunk)
-            # with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
-            #     futures = [executor.submit(self._translate, i + self.config.from_chunk, chunk) for i, chunk in
-            #                enumerate(chunks)]
-            #     for future in concurrent.futures.as_completed(futures):
-            #         future.result()
-            self.config.from_chunk = len(chunks) + self.config.from_chunk
+            self.chunks = self.chunkify(text)
+            for i, chunk in enumerate(self.chunks):
+                self._translate(i + self.config.from_chunk + 1, chunk)
+
+            self.config.from_chunk = len(self.chunks) + self.config.from_chunk
         else:
             self._translate(0, text)
             self.config.from_chunk = 1
 
     def _translate(self, chunk_number, text):
-        prompt = get_translation_prompt(text, self.config.source_language,
+        # get part_info from the chunk number and total number of chunks
+        part_info = f'Part {chunk_number + 1} of {len(self.chunks)}' if self.chunks else ''
+        prompt = get_translation_prompt(part_info, text, self.config.source_language,
                                         {k: LANG_CODE_MAP[k] for k in self.target_languages})
         response = self.gen_model.generate_content(contents=prompt,
                                                    generation_config=GenerationConfig(max_output_tokens=4000,
-                                                                                      temperature=0.5))
+                                                                                      temperature=0.2))
 
         for n in self.config.translations:
             sanitized_response = None
+            answer = ''
             try:
                 tx = response.text.replace('```json', '')
                 tx = tx.replace('```', '')
+                answer = tx
                 response_dict = json.loads(tx)
                 if not response_dict.get('answer'):
                     error = f'⚡Could not translate...'
@@ -105,7 +107,7 @@ class ContentCurator:
                 else:
                     sanitized_response = response_dict['answer'][LANG_CODE_MAP.get(n)]
             except Exception as e:
-                error = f'⚡Could not translate due to a run time exception: {e}'
+                error = f'⚡Could not load json due to a run time exception for answer {answer}: {e}'
                 self.logger.error(error)
             if sanitized_response:
                 self._synthesize(chunk_number, sanitized_response, n)
@@ -116,17 +118,20 @@ class ContentCurator:
         voice_name = str(f'{LANG_CODE_MAP.get(n)}-Standard-B')
         language_code = LANG_CODE_MAP.get(n)
         voice = texttospeech.VoiceSelectionParams(language_code=language_code, name=voice_name)
-        file_name = f'{language_code}/{self.config.id}/{self.config.name}-part-{part_number}-{language_code}' if part_number > 0 \
-            else f'{language_code}/{self.config.id}/{self.config.name}-{language_code}'
+        key_name = f'{language_code}/{self.config.id}/{self.config.name}-part-{part_number}' if part_number > 0 \
+            else f'{language_code}/{self.config.id}/{self.config.name}'
 
         request = texttospeech.SynthesizeLongAudioRequest(
             parent=os.getenv("GCP_PARENT_PROJECT_LOCATION"),
             input={'text': tx},
             audio_config=self.audio_config,
             voice=voice,
-            output_gcs_uri=f'{os.getenv("GCS_BUCKET")}/{file_name}'
+            output_gcs_uri=f'{os.getenv("GCS_BUCKET")}/{key_name}/audio.wav'
         )
         response = self.tts_client.synthesize_long_audio(request=request)
+        # also upload tx as raw translated text to the gcs bucket
+        blob = self.bucket.blob(f'{key_name}/subtitles.txt')
+        blob.upload_from_string(data=tx, content_type="text/plain; charset=utf-8")
         self.logger.info(f"Synthesizing part {part_number} in {n} language")
         self.logger.info(f"Synthesis response: {response}")
-        self.logger.info(f"Synthesized audio file: {file_name}")
+        self.logger.info(f"Synthesized audio file: {key_name}/audio.wav")
