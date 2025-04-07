@@ -1,7 +1,8 @@
 import os
 
 from moviepy.editor import AudioFileClip, CompositeAudioClip
-
+import moviepy.video.fx.all as vfx
+import moviepy.audio.fx.all as afx
 # merge 2 audio files into one but with one of them on lower volume
 from moviepy.video.compositing.concatenate import concatenate
 from moviepy.video.io.ImageSequenceClip import ImageSequenceClip
@@ -11,11 +12,13 @@ def merge_audio_files(file1, file2, volume=0.5):
     audio1 = AudioFileClip(file1)
     audio2 = AudioFileClip(file2)
     audio2 = audio2.volumex(volume)
+    audio2 = afx.audio_loop(audio2, duration=audio1.duration)
     final_audio = CompositeAudioClip([audio1, audio2])
     final_audio = final_audio.set_duration(audio1.duration)
-    final_audio.write_audiofile('merged.wav', fps=44100)
+    final_audio.write_audiofile('1_merged.wav', fps=44100)
     audio1.close()
     audio2.close()
+    final_audio.close()
     # create video with the merged audio and a bunch of images slowly fading in and rotating
     # write code
     image_folder = './image'
@@ -28,28 +31,9 @@ def merge_audio_files(file1, file2, volume=0.5):
         return
     fps = 44100
     clip = ImageSequenceClip(image_files, fps=fps)
-
     # Set the audio of the video clip to the loaded audio clip
     clip = clip.set_audio(final_audio)
-
-    # Ensure the video duration matches the audio duration
-    if clip.duration < final_audio.duration:
-        # Option 1: Loop the video to match audio duration (simplest but might look repetitive)
-        # clip = clip.fx(vfx.loop, duration=audio_clip.duration)
-
-        # Option 2: Extend the last frame to match audio duration (video will freeze at the end)
-        last_frame = clip.get_frame(clip.duration - 1 / fps if clip.duration > 0 else 0)
-        from moviepy.editor import ImageClip
-        extended_frame_clip = ImageClip(last_frame, duration=final_audio.duration - clip.duration)
-        clip = concatenate([clip, extended_frame_clip])
-        clip = clip.set_audio(final_audio)  # Re-set audio after concatenation
-
-    elif clip.duration > final_audio.duration:
-        # Trim the video to match the audio duration
-        clip = clip.subclip(0, final_audio.duration)
-
-    clip.write_videofile("youtube_ready_video", codec='libx264', audio_codec='aac')
-
+    clip.write_videofile("youtube_ready_video", codec='mpeg4')
     final_audio.close()
     clip.close()
 
