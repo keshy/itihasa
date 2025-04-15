@@ -1,5 +1,6 @@
 import os
 
+from google.cloud import storage
 from moviepy.editor import AudioFileClip, CompositeAudioClip
 import moviepy.video.fx.all as vfx
 import moviepy.audio.fx.all as afx
@@ -7,6 +8,21 @@ import moviepy.audio.fx.all as afx
 from moviepy.video.VideoClip import ImageClip
 from moviepy.video.compositing.concatenate import concatenate
 from moviepy.video.io.ImageSequenceClip import ImageSequenceClip
+import vertexai
+import logging
+
+from publisher import Publisher
+
+logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(job_id)s - %(message)s')
+vertexai.init(project=os.getenv("GCP_PARENT_PROJECT"), location=os.getenv("GCP_LOCATION"))
+
+
+class YoutubePublisher(Publisher):
+
+    def __init__(self):
+        super().__init__()
+
+
 
 
 def merge_audio_files(file1, file2, volume=0.5):
