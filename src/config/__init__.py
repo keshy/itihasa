@@ -62,6 +62,43 @@ def get_translation_prompt(part_info, text, lang, target_langs_map):
         """
 
 
+def get_part_summary_for_img_prompt(text):
+    return f"""
+        Given the TEXT below in <TEXT> field in a given language, generate a succinct summary of the text that can be 
+        used for image generation in english language. 
+        The output format must follow the following pattern:
+        - must be ONLY in json format
+        - must only contain one field - {{"summary": "<summary>"}}. The summary field must be a succinct summary of the text in english language.
+        - The summary must be in a single line and not more than 100 words.
+        
+        <TEXT>
+        {text}
+        </TEXT>
+    """
+
+
+def get_image_prompt(text, description):
+    return f""" Generate an image based on the following text provided in <TEXT> field as a summary of a video. 
+                    Include the following guardrails in your response:
+                    - The image must NOT contain any text or writings or logos. 
+                    - The image must be in a 16:9 aspect ratio.
+                    - The image must be in a high resolution.
+                    - The image must be in a format that is compatible with video editing software.
+                    - The image generation leverages the broader context of the video as specified in <DESCRIPTION> field if available
+                    - Generate only 1 single image. 
+                    - The image must NOT contain any text/writings or logos. 
+                    - Image format must be in png format. 
+
+                    <TEXT>
+                    {text}
+                    </TEXT>
+
+                    <DESCRIPTION>
+                    {description}
+                    </DESCRIPTION>
+                """
+
+
 PLATFORMS = {
     "audio": ["youtube", "soundcloud", "spotify", "apple_podcasts", "google_podcasts"],
     "video": ["youtube", "vimeo"]

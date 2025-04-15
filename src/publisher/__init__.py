@@ -1,7 +1,10 @@
+import io
+import json
 import os
 
 import vertexai
 from google.cloud import storage
+from moviepy.video.VideoClip import ImageClip
 from vertexai.generative_models import GenerativeModel, GenerationConfig
 import logging
 import moviepy.audio.fx.all as afx
@@ -9,6 +12,9 @@ import moviepy.audio.fx.all as afx
 from moviepy.audio.AudioClip import CompositeAudioClip
 from moviepy.audio.io.AudioFileClip import AudioFileClip
 from vertexai.vision_models import ImageGenerationModel
+from PIL import Image as PILImage
+
+from config import get_part_summary_for_img_prompt, get_image_prompt
 
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(job_id)s - %(message)s')
 vertexai.init(project=os.getenv("GCP_PARENT_PROJECT"), location=os.getenv("GCP_LOCATION"))
@@ -18,21 +24,29 @@ class Publisher:
 
     def __init__(self, bucket=None, description=None):
 
-        self.bgm = './bgm.mp3'
+        self.bgm = '../bgm.mp3'
+        self.default_cover = '../default_cover.png'
         self.storage_client = storage.Client()
-        self.img_model = GenerativeModel("gemini-pro-vision")
+        self.gen_model = GenerativeModel(os.getenv("VERTEX_MODEL_ID", "gemini-2.0-flash-001"))
+        self.img_model = ImageGenerationModel.from_pretrained("imagen-3.0-generate-002")
         self.img_options = GenerationConfig(temperature=0.75, max_output_tokens=2048)
 
         self.bucket = self.storage_client.bucket(os.getenv("GCS_BUCKET").split("://")[1] if bucket is None else bucket)
         self.logger = logging.getLogger(__name__)
         self.tmp_dir = os.getenv("TMP_DIR", "/tmp")
         self.description = description
+        self.content_path = f'{self.tmp_dir}/%s-content.wav'
+        self.img_path = f'{self.tmp_dir}/%s-image.png'
+        self.merged_audio_path = f'{self.tmp_dir}/%s-merged.mp3'
+        self.staging_audio_path = '%s/staging_audio.mp3'
+        self.tmp_video_path = f'{self.tmp_dir}/%s-video.mp4'
+        self.staging_video_path = '%s/staging_video.mp4'
 
     def add_bgm(self, key, bgm_path=None, bgm_volume=0.5, clear_tmp=True):
-        u_blob = self.bucket.blob(f'{key}/staging_audio.mp3')
-        content_path = f'{self.tmp_dir}/{key.rsplit("/")[-1]}-content.wav'
-        merged_audio_path = f'{self.tmp_dir}/{key.rsplit("/")[-1]}-merged.mp3'
-        gcs_path_for_merged_audio = f'{key}/staging_audio.mp3'
+        u_blob = self.bucket.blob(self.staging_audio_path % key)
+        content_path = self.content_path % key.rsplit("/")[-1]
+        merged_audio_path = self.merged_audio_path % key.rsplit("/")[-1]
+        gcs_path_for_merged_audio = self.staging_audio_path % key
         if u_blob.exists():
             self.logger.info(f"File already exists in GCS: {u_blob.name}")
             u_blob.download_to_filename(merged_audio_path)
@@ -73,49 +87,71 @@ class Publisher:
             return
         # load audio file from disk
         ad = AudioFileClip(merged_audio)
-        # generate image based on summary of subtitles using llm
-        img = self.generate_image(key)
-        if not img:
-            self.logger.error("Failed to generate image")
-            # use default image
-            img = './default_image.jpg'
+        tmp_img_path = self.img_path % key.rsplit("/")[-1]
+        u_blob = self.bucket.blob(f'{key}/staging_image.png')
+        if u_blob.exists():
+            self.logger.info(f"File already exists in GCS: {u_blob.name}")
+            u_blob.download_to_filename(tmp_img_path)
+            return tmp_img_path
+        else:
+            # generate image based on summary of subtitles using llm
+            img = self.generate_image(key)
+            if not img:
+                self.logger.error("Failed to generate image using AI - defaulting to default image")
+                tmp_img_path = self.default_cover
+            else:
+                if img._mime_type == 'image/png':
+                    PILImage.open(io.BytesIO(img._image_bytes)).save(tmp_img_path, format='PNG',
+                                                                     quality=95)
+                else:
+                    self.logger.error("Image is not PNG - defaulting to default image")
+                    tmp_img_path = self.default_cover
+            u_blob.upload_from_filename(tmp_img_path)
+        # create video clip from image
+        clip = ImageClip(img=tmp_img_path, duration=ad.duration)
+        # Set the audio of the video clip to the loaded audio clip
+        clip = clip.set_audio(ad)
+        tmp_file = self.tmp_video_path % key.rsplit("/")[-1]
+        clip.write_videofile(tmp_file, codec='mpeg4', fps=1, audio_codec='aac',
+                             threads=4)
+        ad.close()
+        clip.close()
+        # upload video to gcs
+        u_blob = self.bucket.blob(f'{key}/staging_video.mp4')
+        u_blob.upload_from_filename(tmp_file)
+        # delete local file
+        os.remove(tmp_file)
+        os.remove(merged_audio)
+        os.remove(tmp_img_path)
 
     def generate_image(self, key):
         # generate image based on summary of subtitles using llm
         # use vertexai to generate image
         blob = self.bucket.blob(key + '/subtitles.txt')
         text = blob.download_as_bytes().decode('utf-8')
-        img_gen_prompt = f"""
-                    Generate an image based on the following text provided in <TEXT> field as a summary of a video. 
-                    Include the following guardrails in your response:
-                    - Convert <TEXT> into english summary and use this to generate an image. 
-                    - The image must be in a 16:9 aspect ratio.
-                    - The image must be in a high resolution.
-                    - The image must be in a format that is compatible with video editing software.
-                    - The image generation leverages the broader context of the video as specified in <DESCRIPTION> field. If its empty - then use your best judgement.
-                    - Generate only 1 single image. 
-                    - The response must only be a valid JSON response. No other content should be returned.
-                    - JSON must only include 1 field - {{"image": "<base64_encoded_image>"}}. The image field must be a base64 encoded image.
-                    - Image format must be in png format. 
+        response = self.gen_model.generate_content(get_part_summary_for_img_prompt(text),
+                                                   generation_config=GenerationConfig(max_output_tokens=4000,
+                                                                                      temperature=0.8))
+        try:
+            summary_txt = response.text.replace('```json', '')
+            summary_txt = summary_txt.replace('```', '')
+            summary = json.loads(summary_txt)
+            if not summary.get('summary'):
+                error = f'⚡Could not generate image...'
+                self.logger.error(error)
+                return None
+        except Exception as e:
+            error = f'⚡Could not load json due to a run time exception for answer {response}: {e}'
+            self.logger.error(error)
+            return None
 
-                    <TEXT>
-                    {text}
-                    </TEXT>
-
-                    <DESCRIPTION>
-                    {self.description}
-                    </DESCRIPTION>
-                """
-        generation_model = ImageGenerationModel.from_pretrained("imagen-3.0-generate-002")
-
-        images = generation_model.generate_images(
-            prompt=img_gen_prompt,
-            number_of_images=4,
-            aspect_ratio="1:1",
-            negative_prompt="",
-            add_watermark=True,
-        )
-
+        text = summary['summary']
+        # generate image using the summary
+        images = self.img_model.generate_images(prompt=get_image_prompt(text, self.description),
+                                                number_of_images=1,
+                                                aspect_ratio="16:9",
+                                                negative_prompt="",
+                                                add_watermark=True, )
         return images[0]
 
     def publish(self):
