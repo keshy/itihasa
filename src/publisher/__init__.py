@@ -81,6 +81,10 @@ class Publisher:
         # get subtitles file from gcs at key
         # summarize information in a prompt to llm to generate relevant image for part.
         # add image as a clip to the video and  add audio to the video
+        v_blob = self.bucket.blob(f'{key}/staging_video.mp4')
+        if v_blob.exists():
+            self.logger.info(f"File already exists in GCS: {v_blob.name}")
+            return
         merged_audio = self.add_bgm(key, bgm_path=bgm_path, clear_tmp=False)
         if not merged_audio:
             self.logger.error("Failed to add BGM")
@@ -92,10 +96,9 @@ class Publisher:
         if u_blob.exists():
             self.logger.info(f"File already exists in GCS: {u_blob.name}")
             u_blob.download_to_filename(tmp_img_path)
-            return tmp_img_path
         else:
             # generate image based on summary of subtitles using llm
-            img = self.generate_image(key)
+            img, summary = self.generate_image(key)
             if not img:
                 self.logger.error("Failed to generate image using AI - defaulting to default image")
                 tmp_img_path = self.default_cover
@@ -107,6 +110,9 @@ class Publisher:
                     self.logger.error("Image is not PNG - defaulting to default image")
                     tmp_img_path = self.default_cover
             u_blob.upload_from_filename(tmp_img_path)
+            # upload summary as a file to GCS
+            summary_blob = self.bucket.blob(f'{key}/summary.txt')
+            summary_blob.upload_from_string(summary)
         # create video clip from image
         clip = ImageClip(img=tmp_img_path, duration=ad.duration)
         # Set the audio of the video clip to the loaded audio clip
@@ -117,8 +123,7 @@ class Publisher:
         ad.close()
         clip.close()
         # upload video to gcs
-        u_blob = self.bucket.blob(f'{key}/staging_video.mp4')
-        u_blob.upload_from_filename(tmp_file)
+        v_blob.upload_from_filename(tmp_file)
         # delete local file
         os.remove(tmp_file)
         os.remove(merged_audio)
@@ -139,11 +144,11 @@ class Publisher:
             if not summary.get('summary'):
                 error = f'⚡Could not generate image...'
                 self.logger.error(error)
-                return None
+                return None, None
         except Exception as e:
             error = f'⚡Could not load json due to a run time exception for answer {response}: {e}'
             self.logger.error(error)
-            return None
+            return None, None
 
         text = summary['summary']
         # generate image using the summary
@@ -152,7 +157,7 @@ class Publisher:
                                                 aspect_ratio="16:9",
                                                 negative_prompt="",
                                                 add_watermark=True, )
-        return images[0]
+        return images[0], text if len(images.images) > 0 else (None, text)
 
     def publish(self):
         pass
