@@ -77,6 +77,25 @@ def get_part_summary_for_img_prompt(text):
     """
 
 
+def get_part_summary_in_local_language(text, lang):
+    return f"""
+        Given the TEXT below in <TEXT> field in a given language, generate a succinct and attractive summary in the local language as 
+         specified in <LANGUAGE_CODE> below within 50 words. You could get a text in same language as the target language indicated in <LANGUAGE_CODE> field and you must support that case too. 
+        The output format must follow the following pattern:
+        - must be ONLY in json format
+        - must only contain one field - {{"summary": "<summary>"}}. The summary field must be a succinct summary of the text in english language.
+        - The summary must be in a single line and not more than 100 words.
+        
+        <TEXT>
+        {text}
+        </TEXT>
+        
+        <LANGUAGE_CODE>
+        {lang}
+        </LANGUAGE_CODE>
+    """
+
+
 def get_image_prompt(text, description):
     return f""" Generate an image based on the following text provided in <TEXT> field as a summary of a video. 
                     Include the following guardrails in your response:

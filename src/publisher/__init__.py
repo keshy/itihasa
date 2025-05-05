@@ -159,7 +159,7 @@ class Publisher:
                                                 add_watermark=True, )
         return images[0], text if len(images.images) > 0 else (None, text)
 
-    def publish(self):
+    def publish(self, key, **kwargs):
         pass
 
 

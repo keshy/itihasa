@@ -10,6 +10,7 @@ slack_secrets.yaml
 doc_loader/confluence_secrets.yaml
 # Airflow sqlite databases
 airflow.db
+publish
 unittests.db
 src/prisma-cortex-playground-cfe143f91a50.json
 *.tar
