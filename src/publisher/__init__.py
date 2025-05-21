@@ -42,7 +42,7 @@ class Publisher:
         self.tmp_video_path = f'{self.tmp_dir}/%s-video.mp4'
         self.staging_video_path = '%s/staging_video.mp4'
 
-    def add_bgm(self, key, bgm_path=None, bgm_volume=0.5, clear_tmp=True):
+    def add_bgm(self, key, bgm_path=None, bgm_volume=0.25, clear_tmp=True):
         u_blob = self.bucket.blob(self.staging_audio_path % key)
         content_path = self.content_path % key.rsplit("/")[-1]
         merged_audio_path = self.merged_audio_path % key.rsplit("/")[-1]

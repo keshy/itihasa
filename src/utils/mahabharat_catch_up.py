@@ -9,7 +9,7 @@ if __name__ == '__main__':
     key_cache = set()
     p = Publisher()
     # get only first level folders under path ta-IN/mahabharat/ - don't get subfolders or files under first level
-    blobs = p.bucket.list_blobs(prefix='hi-IN/mahabharat/', delimiter='///')
+    blobs = p.bucket.list_blobs(prefix='ta-IN/mahabharat/', delimiter='///')
     for blob in blobs:
         key_cache.add('/'.join(blob.name.split('/')[0:3]))
 

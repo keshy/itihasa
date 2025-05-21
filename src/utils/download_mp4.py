@@ -4,7 +4,7 @@ from config import set_system_env_defaults
 from publisher.youtube import YouTubePublisher
 
 if __name__ == '__main__':
-    start_offset = 20
+    start_offset = 46
     set_system_env_defaults()
     key_cache = []
     ytp = YouTubePublisher(local_lang="Tamil")

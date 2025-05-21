@@ -40,7 +40,8 @@ def get_base_translation_prompt():
         - The response must only be a valid JSON response. No other content should be returned. 
         - JSON must include 2 fields - {{"answer": {{"<language_code>": "<translated_answer>"}}}}. The answer field must be a dictionary of the language code as found in the values of <LANGUAGE_CODE_MAP>, and its corresponding translated text in that language.
         - Do not allow translations for more than 10 languages at a time in one request.  
-        - Do not return with any other response format other than the json. 
+        - Do not return with any other response format other than the json.
+        - Try to make the translation concise and to the point. ßßß 
         """
 
 

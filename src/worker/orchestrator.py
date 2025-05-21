@@ -6,7 +6,7 @@ from google.cloud import storage
 import vertexai
 from vertexai.generative_models import GenerativeModel, GenerationConfig
 from google.cloud import texttospeech
-
+from publisher import Publisher
 import concurrent.futures
 
 from config import LANG_CODE_MAP, get_translation_prompt, ContentConfig
@@ -38,6 +38,7 @@ class ContentCurator:
         )
         self.target_languages = config.translations
         self.job_id = uuid.uuid4()
+        self.publisher = Publisher()
         self.retry_from_chunk = self.config.from_chunk
         # Add JobIDFilter to the logger
         job_id_filter = JobIDFilter(self.job_id)
@@ -68,6 +69,8 @@ class ContentCurator:
             for root, dirs, files in os.walk(self.config.source_path):
                 files.sort()
                 for file in files:
+                    if file == 'changelog':
+                        continue
                     with open(os.path.join(root, file), 'r') as f:
                         text = f.read()
                         self._process(text)
@@ -110,7 +113,8 @@ class ContentCurator:
                 error = f'⚡Could not load json due to a run time exception for answer {answer}: {e}'
                 self.logger.error(error)
             if sanitized_response:
-                self._synthesize(chunk_number, sanitized_response, n)
+                key_name = self._synthesize(chunk_number, sanitized_response, n)
+                self.publisher.process_video(key=key_name)
             else:
                 self.logger.warning("Skipping synthesis due to error in translation.")
 
@@ -135,3 +139,4 @@ class ContentCurator:
         self.logger.info(f"Synthesizing part {part_number} in {n} language")
         self.logger.info(f"Synthesis response: {response}")
         self.logger.info(f"Synthesized audio file: {key_name}/audio.wav")
+        return key_name
