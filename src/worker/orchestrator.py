@@ -2,6 +2,9 @@ import json
 import logging
 import os
 import uuid
+from datetime import time
+from time import sleep
+
 from google.cloud import storage
 import vertexai
 from vertexai.generative_models import GenerativeModel, GenerationConfig
@@ -114,6 +117,7 @@ class ContentCurator:
                 self.logger.error(error)
             if sanitized_response:
                 key_name = self._synthesize(chunk_number, sanitized_response, n)
+                sleep(10)
                 self.publisher.process_video(key=key_name)
             else:
                 self.logger.warning("Skipping synthesis due to error in translation.")

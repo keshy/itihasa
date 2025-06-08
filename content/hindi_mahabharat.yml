@@ -14,4 +14,4 @@ content_manifest:
   generate_ai_description: true
   generate_milestones: true
   split_into_parts: true
-  from_chunk: 23
+  from_chunk: 44

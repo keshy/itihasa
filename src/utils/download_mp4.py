@@ -4,7 +4,7 @@ from config import set_system_env_defaults
 from publisher.youtube import YouTubePublisher
 
 if __name__ == '__main__':
-    start_offset = 46
+    start_offset = 85
     set_system_env_defaults()
     key_cache = []
     ytp = YouTubePublisher(local_lang="Tamil")
@@ -14,6 +14,8 @@ if __name__ == '__main__':
     for blob in blobs:
         if blob.name.endswith('.mp4'):
             key_cache.append(blob.name)
+
+            os.listd
 
     key_cache.sort(key=lambda x: (x.rsplit('-', 1)[0], int(x.rsplit('-', 1)[1].rsplit('/', 1)[0])))
 
