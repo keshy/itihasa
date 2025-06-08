@@ -24,7 +24,7 @@ class Publisher:
 
     def __init__(self, bucket=None, description=None):
 
-        self.bgm = '../bgm.mp3'
+        self.bgm = '../relax.mp3'
         self.default_cover = '../default_cover.png'
         self.storage_client = storage.Client()
         self.gen_model = GenerativeModel(os.getenv("VERTEX_MODEL_ID", "gemini-2.0-flash-001"))
@@ -157,7 +157,7 @@ class Publisher:
                                                 aspect_ratio="16:9",
                                                 negative_prompt="",
                                                 add_watermark=True, )
-        return images[0], text if len(images.images) > 0 else (None, text)
+        return images.images[0], text if (images.images and len(images.images)) > 0 else (None, text)
 
     def publish(self, key, **kwargs):
         pass
@@ -165,4 +165,4 @@ class Publisher:
 
 if __name__ == '__main__':
     p = Publisher(bucket="ithihasa", description="Old mythology from india")
-    p.process_video(key='ta-IN/mahabharat/Mahabharat - As written by Vyasa-part-1', bgm_path='../bgm.mp3')
+    p.process_video(key='ta-IN/mahabharat/Mahabharat - As written by Vyasa-part-1', bgm_path='../relax.mp3')
