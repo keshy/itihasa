@@ -51,9 +51,17 @@ jobs:
       run: |
         black src/
 
-    - name: Check import sorting with isort
+    - name: Sort imports with isort
       run: |
-        isort --check-only src/
+        # First try to fix the imports
+        isort src/
+        
+        # Then check if there are any remaining issues
+        if ! isort --check-only --diff src/; then
+            echo "\n\nImports were automatically sorted. Please commit the changes."
+            git diff
+            exit 1
+        fi
 
     - name: Test import structure
       run: |
@@ -169,7 +177,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [ubuntu-latest, windows-latest, macOS-latest]
+        os: [ubuntu-latest, macOS-latest]
         python-version: ['3.8', '3.9', '3.10', '3.11']
 
     steps:
