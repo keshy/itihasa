@@ -2,21 +2,14 @@
 
 # Itihasa
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 [![Python Version](https://img.shields.io/badge/python-3.7%20%7C%203.8%20%7C%203.9%20%7C%203.10%20%7C%203.11-blue)](https://www.python.org/)
 [![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
 [![Imports: isort](https://img.shields.io/badge/imports-isort-ef8336.svg)](https://pycqa.github.io/isort/)
-[![Codecov](https://img.shields.io/codecov/c/github/yourusername/itihasa/main?logo=codecov&logoColor=white)](https://codecov.io/gh/yourusername/itihasa)
-[![GitHub Workflow Status](https://img.shields.io/github/actions/workflow/status/yourusername/itihasa/ci.yml?branch=main&label=CI/CD&logo=github-actions&logoColor=white)](https://github.com/yourusername/itihasa/actions/workflows/ci.yml)
-[![Documentation Status](https://readthedocs.org/projects/itihasa/badge/?version=latest)](https://itihasa.readthedocs.io/en/latest/?badge=latest)
-[![PyPI version](https://badge.fury.io/py/itihasa.svg)](https://pypi.org/project/itihasa/)
-[![CodeFactor](https://www.codefactor.io/repository/github/yourusername/itihasa/badge)](https://www.codefactor.io/repository/github/yourusername/itihasa)
-[![Maintainability](https://api.codeclimate.com/v1/badges/your-code-climate-id/maintainability)](https://codeclimate.com/github/yourusername/itihasa/maintainability)
-[![Open Issues](https://img.shields.io/github/issues-raw/yourusername/itihasa?color=red&logo=github)](https://github.com/yourusername/itihasa/issues)
-[![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg?style=flat-square)](http://makeapullrequest.com)
-[![Last Commit](https://img.shields.io/github/last-commit/yourusername/itihasa?logo=github)](https://github.com/yourusername/itihasa/commits/main)
-[![Discord](https://img.shields.io/discord/your-discord-server?color=7289da&label=Chat%20on%20Discord&logo=discord&logoColor=white)](https://discord.gg/your-discord-invite)
-[![Twitter Follow](https://img.shields.io/twitter/follow/yourusername?style=social)](https://twitter.com/yourusername)
+[![GitHub Workflow Status](https://img.shields.io/github/actions/workflow/status/keshy/itihasa/ci.yml?branch=main&label=CI/CD&logo=github-actions&logoColor=white)](https://github.com/keshy/itihasa/actions/workflows/ci.yml)
+[![Last Commit](https://img.shields.io/github/last-commit/keshy/itihasa?logo=github)](https://github.com/keshy/itihasa/commits/main)
+[![Open Issues](https://img.shields.io/github/issues-raw/keshy/itihasa?color=red&logo=github)](https://github.com/keshy/itihasa/issues)
+[![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg?style=flat-square)](https://makeapullrequest.com)
 
 </div>
 
@@ -44,7 +37,7 @@ A powerful AI-driven tool for processing, translating, and generating audio cont
 
 1. Clone the repository:
 ```bash
-git clone https://github.com/yourusername/itihasa.git
+git clone https://github.com/keshy/itihasa.git
 cd itihasa
 ```
 
