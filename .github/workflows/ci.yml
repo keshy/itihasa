@@ -1,0 +1,230 @@
+name: CI
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: [3.8, 3.9, '3.10', '3.11']
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ matrix.python-version }}
+
+    - name: Cache pip dependencies
+      uses: actions/cache@v3
+      with:
+        path: ~/.cache/pip
+        key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
+        restore-keys: |
+          ${{ runner.os }}-pip-
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        pip install pytest pytest-cov flake8 black isort
+
+    - name: Lint with flake8 and bandit
+      run: |
+        # Install bandit for security scanning
+        pip install bandit
+        
+        # Run bandit security scanner
+        bandit -r src/ --severity-level=high --confidence-level=high
+        
+        # Run flake8 for code style
+        flake8 src/ --count --select=E9,F63,F7,F82 --show-source --statistics
+        flake8 src/ --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
+
+    - name: Format code with black
+      run: |
+        black src/
+
+    - name: Sort imports with isort
+      run: |
+        # First try to fix the imports
+        isort src/
+        
+        # Then check if there are any remaining issues
+        if ! isort --check-only --diff src/; then
+            echo "\n\nImports were automatically sorted. Please commit the changes."
+            git diff
+            exit 1
+        fi
+
+    - name: Test import structure
+      run: |
+        python -c "
+        import sys
+        import os
+        
+        # Set UTF-8 encoding for Windows
+        if sys.platform == 'win32':
+            import io
+            import sys
+            sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
+        
+        sys.path.append('src')
+        
+        def test_import(name):
+            try:
+                __import__(name)
+                print(f'[PASS] {name} imports successfully')
+                return True
+            except ImportError as e:
+                print(f'[FAIL] {name} import failed: {e}')
+                return False
+            except Exception as e:
+                print(f'[PASS] {name} found (runtime error expected without GCP credentials): {e}')
+                return True
+        
+        # Test core imports
+        core_imports = [
+            'config',
+            'worker.orchestrator',
+            'main',
+            'generate'
+        ]
+        
+        all_passed = all(test_import(imp) for imp in core_imports)
+        
+        if not all_passed:
+            print('\nSome imports failed. Check the logs above for details.')
+            sys.exit(1)
+        "
+
+    - name: Test basic functionality (without GCP credentials)
+      run: |
+        python -c "
+        import sys
+        sys.path.append('src')
+        
+        # Test that main module can be imported
+        try:
+            import main
+            print('✓ Main module imports successfully')
+        except ImportError as e:
+            print(f'✗ Main module import failed: {e}')
+            sys.exit(1)
+        except Exception as e:
+            print(f'✓ Main module found (runtime error expected without GCP credentials): {e}')
+        
+        # Test generate module
+        try:
+            import generate
+            print('✓ Generate module imports successfully')
+        except ImportError as e:
+            print(f'✗ Generate module import failed: {e}')
+            sys.exit(1)
+        except Exception as e:
+            print(f'✓ Generate module found: {e}')
+        "
+
+    - name: Run pytest (if tests exist)
+      run: |
+        if [ -d "tests" ]; then
+          pytest tests/ -v --cov=src --cov-report=xml
+        else
+          echo "No tests directory found, skipping pytest"
+        fi
+
+    - name: Upload coverage to Codecov
+      if: matrix.python-version == '3.9'
+      uses: codecov/codecov-action@v3
+      with:
+        file: ./coverage.xml
+        flags: unittests
+        name: codecov-umbrella
+        fail_ci_if_error: false
+
+  security:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.9'
+
+    - name: Install security tools
+      run: |
+        python -m pip install --upgrade pip
+        pip install safety bandit
+
+    - name: Check for security vulnerabilities in dependencies
+      run: |
+        pip install -r requirements.txt
+        safety check
+
+    - name: Run bandit security linter
+      run: |
+        bandit -r src/ -f json -o bandit-report.json || true
+        bandit -r src/
+
+  install-test:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macOS-latest]
+        python-version: ['3.8', '3.9', '3.10', '3.11']
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ matrix.python-version }}
+
+    - name: Test clean installation
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+
+    - name: Verify installation
+      run: |
+        python -c "
+        import requests
+        import yaml
+        import PIL
+        from bs4 import BeautifulSoup
+        print('✓ All basic dependencies installed successfully')
+        "
+
+    - name: Test module structure
+      run: |
+        python -c "
+        import os
+        import sys
+        
+        # Check if src directory exists and has expected structure
+        if not os.path.exists('src'):
+            print('✗ src directory not found')
+            sys.exit(1)
+        
+        expected_files = ['main.py', 'generate.py']
+        for file in expected_files:
+            if not os.path.exists(f'src/{file}'):
+                print(f'✗ {file} not found in src/')
+                sys.exit(1)
+        
+        expected_dirs = ['config', 'worker', 'utils', 'publisher']
+        for dir in expected_dirs:
+            if not os.path.exists(f'src/{dir}'):
+                print(f'✗ {dir} directory not found in src/')
+                sys.exit(1)
+        
+        print('✓ Project structure is valid')
+        "

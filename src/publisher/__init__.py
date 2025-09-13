@@ -9,6 +9,9 @@ from vertexai.generative_models import GenerativeModel, GenerationConfig
 import logging
 import moviepy.audio.fx.all as afx
 
+# Import our secure temp utilities
+from utils.temp_utils import get_temp_dir
+
 from moviepy.audio.AudioClip import CompositeAudioClip
 from moviepy.audio.io.AudioFileClip import AudioFileClip
 from vertexai.vision_models import ImageGenerationModel
@@ -33,14 +36,22 @@ class Publisher:
 
         self.bucket = self.storage_client.bucket(os.getenv("GCS_BUCKET").split("://")[1] if bucket is None else bucket)
         self.logger = logging.getLogger(__name__)
-        self.tmp_dir = os.getenv("TMP_DIR", "/tmp")
+        
+        # Use secure temp directory
+        self.tmp_dir = os.getenv("TMP_DIR", get_temp_dir())
+        
+        # Ensure the temp directory exists with secure permissions
+        os.makedirs(self.tmp_dir, exist_ok=True, mode=0o700)
+        
         self.description = description
-        self.content_path = f'{self.tmp_dir}/%s-content.wav'
-        self.img_path = f'{self.tmp_dir}/%s-image.png'
-        self.merged_audio_path = f'{self.tmp_dir}/%s-merged.mp3'
-        self.staging_audio_path = '%s/staging_audio.mp3'
-        self.tmp_video_path = f'{self.tmp_dir}/%s-video.mp4'
-        self.staging_video_path = '%s/staging_video.mp4'
+        
+        # Define paths using os.path.join for cross-platform compatibility
+        self.content_path = os.path.join(self.tmp_dir, '%s-content.wav')
+        self.img_path = os.path.join(self.tmp_dir, '%s-image.png')
+        self.merged_audio_path = os.path.join(self.tmp_dir, '%s-merged.mp3')
+        self.staging_audio_path = os.path.join('%s', 'staging_audio.mp3')
+        self.tmp_video_path = os.path.join(self.tmp_dir, '%s-video.mp4')
+        self.staging_video_path = os.path.join('%s', 'staging_video.mp4')
 
     def add_bgm(self, key, bgm_path=None, bgm_volume=0.25, clear_tmp=True):
         u_blob = self.bucket.blob(self.staging_audio_path % key)
