@@ -6,37 +6,74 @@ These tests focus on import validation and basic structure checks.
 import unittest
 import sys
 import os
+from unittest.mock import patch, MagicMock
 
 # Add src to path for testing
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
+
+# Mock Google Cloud imports before importing main
+with patch('vertexai.init'), \
+     patch('vertexai.generative_models.GenerativeModel'), \
+     patch('google.cloud.texttospeech.TextToSpeechLongAudioSynthesizeClient'):
+    import main
 
 
 class TestBasicImports(unittest.TestCase):
     """Test that core modules can be imported without errors."""
     
-    def test_main_module_import(self):
+    @patch('vertexai.init')
+    @patch('vertexai.generative_models.GenerativeModel')
+    @patch('google.cloud.texttospeech.TextToSpeechLongAudioSynthesizeClient')
+    def test_main_module_import(self, mock_tts_client, mock_gen_model, mock_init):
         """Test that main module can be imported."""
+        # Mock the Google Cloud client
+        mock_tts_client.return_value = MagicMock()
+        mock_gen_model.return_value = MagicMock()
+        
+        # Test importing main module
         try:
-            import main
+            import importlib
+            importlib.reload(main)  # Reload to apply mocks
             self.assertTrue(hasattr(main, 'process'))
-        except ImportError:
-            self.fail("Could not import main module")
+        except ImportError as e:
+            self.fail(f"Could not import main module: {e}")
+        except Exception as e:
+            if "DefaultCredentialsError" in str(e):
+                self.fail("Google Cloud credentials required. Use mocks for testing.")
+            raise
     
-    def test_generate_module_import(self):
+    @patch('config.parse_config')
+    @patch('worker.orchestrator.ContentCurator')
+    def test_generate_module_import(self, mock_orchestrator, mock_parse_config):
         """Test that generate module can be imported."""
+        # Mock the dependencies
+        mock_parse_config.return_value = {}
+        mock_orchestrator.return_value = MagicMock()
+        
         try:
             import generate
             self.assertTrue(hasattr(generate, 'main'))
-        except ImportError:
-            self.fail("Could not import generate module")
+        except ImportError as e:
+            self.fail(f"Could not import generate module: {e}")
+        except Exception as e:
+            if "DefaultCredentialsError" in str(e):
+                self.fail("Google Cloud credentials required. Use mocks for testing.")
+            raise
     
     def test_config_module_import(self):
         """Test that config module can be imported."""
         try:
-            from config import parse_config
-            self.assertTrue(callable(parse_config))
-        except ImportError:
-            self.fail("Could not import config module")
+            # Use a mock to avoid actual file system operations
+            with patch('builtins.open', unittest.mock.mock_open(read_data='{}')), \
+                 patch('yaml.safe_load', return_value={}):
+                from config import parse_config
+                self.assertTrue(callable(parse_config))
+        except ImportError as e:
+            self.fail(f"Could not import config module: {e}")
+        except Exception as e:
+            if "No such file or directory" in str(e):
+                self.skipTest("Config file not found, but that's expected in tests")
+            raise
 
 
 class TestProjectStructure(unittest.TestCase):
